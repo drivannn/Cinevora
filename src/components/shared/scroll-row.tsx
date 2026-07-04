@@ -92,7 +92,7 @@ export function ScrollRow({
         aria-label={ariaLabel}
         tabIndex={0}
         className={cn(
-          "scroll-row flex touch-pan-y snap-x snap-mandatory gap-4 overflow-x-auto overscroll-x-contain pb-5 pr-10 outline-none focus-visible:ring-2 focus-visible:ring-accent",
+          "scroll-row flex snap-x snap-mandatory gap-4 overflow-x-auto overscroll-x-contain pb-5 pr-10 outline-none focus-visible:ring-2 focus-visible:ring-accent",
           "w-full max-w-full",
           className,
         )}

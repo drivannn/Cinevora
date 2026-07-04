@@ -73,6 +73,8 @@ html {
 }
 
 .scroll-row {
+  touch-action: pan-x pan-y;
+  -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
   scrollbar-color: rgba(245, 158, 11, 0.7) rgba(255, 255, 255, 0.06);
 }
