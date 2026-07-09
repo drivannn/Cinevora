@@ -3,12 +3,13 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { Search, SlidersHorizontal } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import useSWRInfinite from "swr/infinite";
 import { Button } from "@/components/ui/button";
 import { SelectMenu } from "@/components/ui/select-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/shared/empty-state";
 import { useDebounce } from "@/hooks/use-debounce";
-import { Genre, Movie, MovieListResponse } from "@/types/tmdb";
+import { Genre, MovieListResponse } from "@/types/tmdb";
 import { MovieGrid } from "./movie-grid";
 
 const sortOptions = [
@@ -19,16 +20,10 @@ const sortOptions = [
 ];
 
 export function ExploreClient({ initialMovies, genres }: { initialMovies: MovieListResponse; genres: Genre[] }) {
-  const [movies, setMovies] = useState<Movie[]>(initialMovies.results);
-  const [page, setPage] = useState(initialMovies.page);
-  const [totalPages, setTotalPages] = useState(initialMovies.total_pages);
   const [query, setQuery] = useState("");
   const [genre, setGenre] = useState("");
   const [year, setYear] = useState("");
   const [sort, setSort] = useState("popularity.desc");
-  const [loading, setLoading] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState("");
   const sentinel = useRef<HTMLDivElement | null>(null);
   const debouncedQuery = useDebounce(query);
   const genreOptions = [
@@ -36,53 +31,53 @@ export function ExploreClient({ initialMovies, genres }: { initialMovies: MovieL
     ...genres.map((item) => ({ label: item.name, value: String(item.id) })),
   ];
 
-  const fetchMovies = useCallback(async (nextPage = 1, append = false) => {
+  const getKey = useCallback((pageIndex: number, previousPageData: MovieListResponse | null) => {
+    if (previousPageData && !previousPageData.results.length) return null;
+    const nextPage = pageIndex + 1;
     const params = new URLSearchParams({ page: String(nextPage) });
     if (debouncedQuery) params.set("query", debouncedQuery);
     if (!debouncedQuery && genre) params.set("genre", genre);
     if (!debouncedQuery && year) params.set("year", year);
     if (!debouncedQuery && sort) params.set("sort", sort);
 
-    if (append) {
-      setLoadingMore(true);
-    } else {
-      setLoading(true);
-    }
-    setError("");
-
-    try {
-      const endpoint = debouncedQuery ? "/api/search" : "/api/discover";
-      const response = await fetch(`${endpoint}?${params.toString()}`);
-      if (!response.ok) throw new Error("Unable to load movies");
-      const data = (await response.json()) as MovieListResponse;
-      setMovies((current) => append ? [...current, ...data.results] : data.results);
-      setPage(data.page);
-      setTotalPages(data.total_pages);
-    } catch {
-      setError("Something went wrong while contacting TMDB. Try adjusting the filters.");
-    } finally {
-      setLoading(false);
-      setLoadingMore(false);
-    }
+    const endpoint = debouncedQuery ? "/api/search" : "/api/discover";
+    return `${endpoint}?${params.toString()}`;
   }, [debouncedQuery, genre, sort, year]);
 
-  useEffect(() => {
-    fetchMovies(1, false);
-  }, [fetchMovies]);
+  const fetcher = useCallback(async (url: string) => {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error("Unable to load movies");
+    return response.json() as Promise<MovieListResponse>;
+  }, []);
+
+  const { data, error: swrError, size, setSize, isValidating } = useSWRInfinite<MovieListResponse>(
+    getKey,
+    fetcher,
+    {
+      fallbackData: [initialMovies],
+      revalidateFirstPage: false,
+    }
+  );
+
+  const movies = data ? data.flatMap((pageData) => pageData.results) : [];
+  const totalPages = data?.[data.length - 1]?.total_pages ?? 1;
+  const loading = !data && !swrError;
+  const loadingMore = isValidating && size > 1 && data && data.length < size;
+  const error = swrError ? "Something went wrong while contacting TMDB. Try adjusting the filters." : "";
 
   useEffect(() => {
     const node = sentinel.current;
     if (!node) return;
 
     const observer = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting && !loading && !loadingMore && page < totalPages) {
-        fetchMovies(page + 1, true);
+      if (entry.isIntersecting && !loading && !loadingMore && size < totalPages) {
+        setSize((prevSize) => prevSize + 1);
       }
     }, { rootMargin: "500px" });
 
     observer.observe(node);
     return () => observer.disconnect();
-  }, [fetchMovies, loading, loadingMore, page, totalPages]);
+  }, [loading, loadingMore, size, totalPages, setSize]);
 
   return (
     <div className="mx-auto max-w-7xl px-5 pb-20 pt-28 sm:px-8">
