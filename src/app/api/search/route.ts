@@ -1,5 +1,3 @@
-export const runtime = 'edge';
-
 import { discoverMovies } from "@/services/tmdb";
 import { getPositivePage, optionalParam } from "@/utils/api";
 import { NextResponse } from "next/server";

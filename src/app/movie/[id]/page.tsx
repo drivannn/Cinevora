@@ -1,5 +1,3 @@
-export const runtime = 'edge';
-
 import type { Metadata } from "next";
 import Image from "next/image";
 import { ArrowLeft, BadgeDollarSign, Building2, Clock, Languages, Users } from "lucide-react";
